@@ -1,6 +1,6 @@
 # Nighttime Alleyway
 
-A dark, scary alleyway written in GLSL. This project explores procedural scene rendering and lighting effects in ShaderToy.
+A procedurally generated dark scary alleyway written in GLSL. This project explores procedural scene rendering and lighting effects in ShaderToy.
 
 ## Files
 - baseplate.glsl – The base project has a few basic primitives and is a result of my playing around with lighting after a bunch of youtube tutorials.
