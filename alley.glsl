@@ -28,11 +28,13 @@ const vec3 AMBIENT = vec3(0.06, 0.07, 0.09);      // Ambient light color
 const float LIGHTSTRENGTH = 0.4;    // Overall light intensity for lamps
 const float LAMPSPACING = 8.5;   // Distance between lamps TODO: make random
 const float LAMPTOWALL = 0.7;  // Distance between lamps and walls (btw has a bit of randomness)
-const float LAMPGLOWINTENSITY = 0.3;  // Extra lamp glow i guess (idk it looks better)
+const float LAMPGLOWINTENSITY = 0.3;  // Extra lamp glow - not lighting (idk it looks better)
+const float LIGHTBULBRADIUS = 0.1;  // lightbulb radius
 
 // Star settings
 const float STARBRIGHTNESS = 1.0;  // Brightness of the stars (in the sky - change ambient for actual light)
 const float STARTHRESH = 0.93;  // Amount of stars in the sky (higher = lower) - change with care
+const float STARHORIZON = 0.5;  // Height which stars begin to show
 
 // Movement settings
 const float CAMHEIGHT = 1.6;  // camera's height above ground
@@ -63,6 +65,9 @@ float sdBox(vec3 p, vec3 b) {
 float sdCylinder(vec3 p, float h, float r) {
     vec2 d = abs(vec2(length(p.xz),p.y)) - vec2(r,h);
     return min(max(d.x,d.y),0.0) + length(max(d,0.0));
+}
+float sdSphere(vec3 p, float s) {
+  return length(p)-s;
 }
 
 // Create ground surface with concrete texture
@@ -142,7 +147,7 @@ Surface mapLamps(vec3 p, float time) {
         side += (hash11(seed * 1.3) - 0.5) * 0.3;
         
         float xPos = side * (ALLEY_WIDTH - LAMPTOWALL - hash11(seed));
-        vec3 lampBase = vec3(xPos, 0.0, z);// xmBg m
+        vec3 lampBase = vec3(xPos, 0.0, z);
         vec3 localP = p - lampBase;
         
         // lamp pole
@@ -150,12 +155,12 @@ Surface mapLamps(vec3 p, float time) {
         float poleDist = sdCylinder(localP - vec3(0, poleHeight*0.5, 0), poleHeight*0.5, 0.06);
         
         // lightbulb
-        vec3 bulbP = localP - vec3(0, poleHeight - 0.35, 0);
-        float bulbDist = length(bulbP) - 0.08;
+        vec3 bulbP = localP - vec3(0, poleHeight, 0);
+        float bulbDist = sdSphere(bulbP, LIGHTBULBRADIUS);
         
         float lampDist = min(poleDist, bulbDist);
         
-        // if closest lamp, do this - probably can be optimized
+        // if closest lamp, do this - probably can be optimized like merged into 1 function
         if (lampDist < s.dist) {
             s.dist = lampDist;
             
@@ -309,7 +314,6 @@ float softShadow(vec3 ro, vec3 rd, float time, float lightDist) {
 
 // Get info about lamps for lighting
 void getLampInfo(vec3 p, float time, out vec3 lampPos[7], out float lampIntensity[7], out vec3 lampColors[7], out int numLamps) {
-    float LAMPSPACING = 8.5;
     float lampZ = floor(p.z / LAMPSPACING);
     
     numLamps = 0;
@@ -374,7 +378,7 @@ Surface rayMarch(vec3 ro, vec3 rd, float time) {
         vec3 pos = ro + rd * dist;
         Surface scene = map(pos, time);
         
-        // super close probabluy a hit
+        // super close probably a hit
         if (scene.dist < MINDIST) {
             obj = scene;
             obj.dist = dist;
@@ -393,10 +397,10 @@ Surface rayMarch(vec3 ro, vec3 rd, float time) {
 // Render starfield for sky
 vec3 renderStars(vec3 rd) {
     // Fade near horizon
-    float horizonFade = smoothstep(0.0, 0.8, abs(rd.y));  // aprox 30deg out of horizon - gpt carry
+    float horizonFade = smoothstep(0.0, STARHORIZON, abs(rd.y));  // aprox 30deg out of horizon - gpt carry
 
     // turn ray into random vals
-    vec2 st = rd.xz / rd.y;
+    vec2 st = rd.xz / max(abs(rd.y), 0.001);
     float starRand = hash11(dot(st, vec2(12.9898, 78.233)));
     float starRand2 = hash11(st.x * st.y * rd.z);
 
@@ -416,6 +420,58 @@ vec3 renderStars(vec3 rd) {
     }
 
     return vec3(0.);
+}
+
+
+vec3 phongLighting(vec3 rayO, vec3 rayD, Surface surface, float time) {
+    vec3 hitPoint = rayO + rayD * surface.dist;
+    vec3 normal = calcNormal(hitPoint, time);
+    
+    // Push point slightly onto surface to avoid artifacts
+    hitPoint += normal * 0.01;
+
+    // Get lamp info
+    vec3 lampPos[7];
+    float lampIntensity[7];
+    vec3 lampColors[7];
+    int numLamps;
+    getLampInfo(hitPoint, time, lampPos, lampIntensity, lampColors, numLamps);
+
+    vec3 lighting = vec3(0.0);
+    
+    // Iterate over all lamps
+    for (int i = 0; i < 7; i++) {
+        if (i >= numLamps) break;
+
+        // Light direction and distance
+        vec3 toLight = lampPos[i] - hitPoint;
+        float dist = length(toLight);
+        vec3 lightDir = toLight / dist;
+
+        // Light attenuation gpt carry
+        float atten = 1.0 / (1.0 + 0.09 * dist + 0.015 * dist * dist);
+        atten *= lampIntensity[i]; // Apply flicker
+
+        // Shadow
+        float shadow = softShadow(hitPoint + normal * 0.05, lightDir, time, dist);
+
+        // Diffuse
+        float diffuse = max(dot(normal, lightDir), 0.0) * shadow;
+
+        // Specular
+        vec3 viewDirection = normalize(rayO - hitPoint);
+        vec3 halfwayDir = normalize(lightDir + viewDirection);
+        float spec = pow(max(dot(normal, halfwayDir), 0.0), surface.shininess);
+        vec3 specular = surface.specStrength * spec * lampColors[i] * shadow;
+
+        // Combine for point
+        lighting += (diffuse * surface.col + specular) * lampColors[i] * atten * LIGHTSTRENGTH;
+    }
+
+    // Add ambient lighting
+    lighting += AMBIENT * surface.col;
+
+    return lighting;
 }
 
 
@@ -450,38 +506,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3 normal = calcNormal(hitPoint, iTime);
         
         // LIGHTING
-        
-        // get near lamps
-        vec3 lampPos[7];
-        float lampIntensity[7];
-        vec3 lampColors[7];
-        int numLamps;
-        getLampInfo(hitPoint, iTime, lampPos, lampIntensity, lampColors, numLamps);
-        
-        // Calculate lighting from all lamps
-        vec3 lighting = vec3(0.0);
-        for(int i = 0; i < 7; i++) {
-            if(i >= numLamps) break;
-            
-            // light dir + dist
-            vec3 toLight = lampPos[i] - hitPoint;
-            float dist = length(toLight);
-            vec3 lightDir = toLight / dist;
-            
-            // Light attenuation (inverse square law) - chatgpt carry
-            float atten = 1.0 / (1.0 + 0.09 * dist + 0.015 * dist * dist);
-            atten *= lampIntensity[i];  // Apply flicker
-            
-            // shadow + diffuse
-            float shadow = softShadow(hitPoint + normal * 0.05, lightDir, iTime, dist);
-            float diff = max(dot(normal, lightDir), 0.0);
-            
-            // boom now we have the lighting
-            lighting += lampColors[i] * diff * atten * shadow * LIGHTSTRENGTH;
-        }
-        
-        // surface col
-        col = surface.col * (AMBIENT + lighting);
+        col = phongLighting(rayOrigin, rayDir, surface, iTime);
         
         // now we gotta make them glow (the lights, i mean)
         if (surface.id == 2) {  // TODO: bloom would be super cool
@@ -507,3 +532,4 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     
     fragColor = vec4(col, 1.0);
 }
+
