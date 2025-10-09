@@ -23,15 +23,15 @@ const float SHADOWSOFTNESS = 32.0;  // Shadow softness factor
 const float FOGDENSITY = 0.025;     // Fog density
 const vec3 FOGCOLOR = vec3(0.02, 0.025, 0.035);  // Fog color (dark blue)
 const vec3 AMBIENT = vec3(0.06, 0.07, 0.09);      // Ambient light color
-const float SPEED = 1.8;            // Camera movement speed
 
 // Lamppost settings
 const float LIGHTSTRENGTH = 0.4;    // Overall light intensity for lamps
 const float LAMPSPACING = 8.5;   // Distance between lamps TODO: make random
 const float LAMPTOWALL = 0.7;  // Distance between lamps and walls (btw has a bit of randomness)
+const float LAMPGLOWINTENSITY = 0.3;  // Extra lamp glow i guess (idk it looks better)
 
 // Star settings
-const float STARBRIGHTNESS = 1.0;  // Brightness of the stars
+const float STARBRIGHTNESS = 1.0;  // Brightness of the stars (in the sky - change ambient for actual light)
 const float STARTHRESH = 0.93;  // Amount of stars in the sky (higher = lower) - change with care
 
 // Movement settings
@@ -40,6 +40,7 @@ const float BOB_SPEED_X = 3.0;      // bobbing speed for X axis (hz-ish)
 const float BOB_SPEED_Y = 4.0;      // bobbing speed for Y axis
 const float BOB_AMOUNT_X = 0.05;    // bobbing amplitude for X axis (meters)
 const float BOB_AMOUNT_Y = 0.07;    // bobbing amplitude for Y axis (meters)
+const float SPEED = 1.8;            // Camera movement speed (walk speed if you will)
 
 // Properties of surfaces (after hitting)
 struct Surface {
@@ -392,7 +393,7 @@ Surface rayMarch(vec3 ro, vec3 rd, float time) {
 // Render starfield for sky
 vec3 renderStars(vec3 rd) {
     // Fade near horizon
-    float horizonFade = smoothstep(-0.3, 0.3, rd.y);
+    float horizonFade = smoothstep(0.0, 0.8, abs(rd.y));  // aprox 30deg out of horizon - gpt carry
 
     // turn ray into random vals
     vec2 st = rd.xz / rd.y;
@@ -406,7 +407,7 @@ vec3 renderStars(vec3 rd) {
         float newRand = hash11(starRand * starRand2); // new random from 0 - 1
 
         // set star brightness
-        float brightness = newRand * STARBRIGHTNESS;
+        float brightness = newRand;
 
         // colors
         vec3 color = mix(vec3(1.0, 0.9, 0.8), vec3(0.8, 0.9, 1.0), hash11(newRand));
@@ -419,7 +420,7 @@ vec3 renderStars(vec3 rd) {
 
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    // CAMERA SETUP
+    // CAMERA SETUP todo: add looking around
     vec2 uv = (fragCoord * 2.0 - iResolution.xy) / iResolution.y;
     
     float camZ = iTime * SPEED;  // Move forward over time
@@ -483,20 +484,20 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         col = surface.col * (AMBIENT + lighting);
         
         // now we gotta make them glow (the lights, i mean)
-        if (surface.id == 2) {
+        if (surface.id == 2) {  // TODO: bloom would be super cool
             float brightness = dot(surface.col, vec3(0.333));
             if (brightness > 1.0)  // is on = add glow
-                col += surface.col * 0.3;
+                col += surface.col * LAMPGLOWINTENSITY;
         }
         
-        // Apply fog
+        // apply fog
         float fogFactor = exp(-FOGDENSITY * surface.dist);
         col = col * fogFactor + FOGCOLOR * (1.0 - fogFactor);
     } else {
         // BG - set sky + stars
-        col = FOGCOLOR * 0.5 + renderStars(rayDir);
+        col = renderStars(rayDir);
     }
-    
+
     // vignette effect
     col *= 1.0 - 0.4 * length(uv * 0.4);
     
