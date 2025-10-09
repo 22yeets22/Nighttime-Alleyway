@@ -1,3 +1,5 @@
+// Simple Raymarching Demo
+
 const float FOV = 1.7; // Field of view radians
 const float CAMDIST = 5.; // Distance to center
 const int STEPS = 120; // Maximum number of raymarching steps
