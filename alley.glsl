@@ -28,7 +28,7 @@ const float SPEED = 1.8;            // Camera movement speed
 // Lamppost settings
 const float LIGHTSTRENGTH = 0.4;    // Overall light intensity
 const float LAMPSPACING = 8.5;   // Distance between lamps TODO: make random
-const float LAMPTOWALL = 0.5;  // Distance between lamps and walls (btw has a bit of randomness)
+const float LAMPTOWALL = 0.7;  // Distance between lamps and walls (btw has a bit of randomness)
 
 // Star settings
 const float STARBRIGHTNESS = 1.0;  // Brightness of the stars
@@ -71,15 +71,16 @@ Surface mapGround(vec3 p) {
     s.id = 0;      // Ground ID
     
     // Create concrete color using noise
-    vec2 groundUV = p.xz * 0.05;
-    vec2 groundUV2 = p.xz * 0.01;
-    float noiseVal = texture(iChannel1, groundUV).r + texture(iChannel2, groundUV2).r;
-    s.col = vec3(0.65, 0.65, 0.63) * (0.85 + noiseVal * 0.15);
+    float octave1 = texture(iChannel1, p.xz * 0.02).r;   // also scale it a bit
+    float octave2 = texture(iChannel1, (p.xz + vec2(69.69, 67.67)) * 0.067).r;
+    float noise = octave1 * 0.3 + octave2 * 0.08;
+    s.col = vec3(0.65, 0.65, 0.63) * (0.85 + noise);
     // TODO: add some cracks puddles smth
     
+    
     // materials
-    s.shininess = 2.0 + noiseVal * 3.0;
-    s.specStrength = 0.02 + noiseVal * 0.05;
+    s.shininess = 2.0 + noise * 18.0;
+    s.specStrength = 0.02 + noise * 0.3;
     
     return s;
 }
@@ -89,7 +90,7 @@ Surface mapWalls(vec3 p) {
     Surface s;
     s.id = 1;  // Wall ID
     
-    // walls are lit massive boxes i did the math if you wait 176 years you can reach the end
+    // walls are js massive boxes i did the math if you wait 176 years you can reach the end
     vec3 boxSize = vec3(.3, WALL_HEIGHT, 1e10);
     float distToLeft = sdBox(p - vec3(-ALLEY_WIDTH, WALL_HEIGHT * 0.5, 0.0), boxSize);
     float distToRight = sdBox(p - vec3(ALLEY_WIDTH, WALL_HEIGHT * 0.5, 0.0), boxSize);
@@ -99,7 +100,7 @@ Surface mapWalls(vec3 p) {
     // texture
     vec2 uv = vec2(p.z * 0.8, p.y * 0.8);
     float wallSide = step(distToLeft, distToRight);  // Which wall are we on
-    uv.x += wallSide * 123.45; // Offset texture per wall
+    uv.x += wallSide * 67.67; // Offset texture per wall
     
     vec3 brickTex = texture(iChannel0, uv).rgb;
     
@@ -194,8 +195,8 @@ Surface mapLamps(vec3 p, float time) {
             }
             
             // material
-            s.shininess = 12.0;
-            s.specStrength = 0.2;
+            s.shininess = 18.0;
+            s.specStrength = 0.3;
         }
     }
     
@@ -293,7 +294,7 @@ float softShadow(vec3 ro, vec3 rd, float time, float lightDist) {
         // ngl ts is chopped
         // todo: less chopped
         if (s.id == 2 && (lightDist - dist < 0.5)) {
-            dist += 0.2;
+            dist += 0.2;  // just increment i suppose
             continue;
         }
         
