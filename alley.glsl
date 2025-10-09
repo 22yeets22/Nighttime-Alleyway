@@ -11,7 +11,7 @@ const float PI = 3.1415926535;
 
 // Scene dimensions
 const float ALLEY_WIDTH = 3.;       // Width of the alley
-const float WALL_HEIGHT = 5.0;      // Height of walls
+const float WALL_HEIGHT = 4.0;      // Height of walls
 const float SEGMENT_LENGTH = 6.0;   // Length of alley segments
 
 // Shadow settings
@@ -25,9 +25,21 @@ const vec3 FOGCOLOR = vec3(0.02, 0.025, 0.035);  // Fog color (dark blue)
 const vec3 AMBIENT = vec3(0.06, 0.07, 0.09);      // Ambient light color
 const float SPEED = 1.8;            // Camera movement speed
 
+// Lamppost settings
 const float LIGHTSTRENGTH = 0.4;    // Overall light intensity
 const float LAMPSPACING = 8.5;   // Distance between lamps TODO: make random
 const float LAMPTOWALL = 0.5;  // Distance between lamps and walls (btw has a bit of randomness)
+
+// Star settings
+const float STARBRIGHTNESS = 1.0;  // Brightness of the stars
+const float STARTHRESH = 0.93;  // Amount of stars in the sky (higher = lower) - change with care
+
+// Movement settings
+const float CAMHEIGHT = 1.6;  // camera's height above ground
+const float BOB_SPEED_X = 3.0;      // bobbing speed for X axis (hz-ish)
+const float BOB_SPEED_Y = 4.0;      // bobbing speed for Y axis
+const float BOB_AMOUNT_X = 0.05;    // bobbing amplitude for X axis (meters)
+const float BOB_AMOUNT_Y = 0.07;    // bobbing amplitude for Y axis (meters)
 
 // Properties of surfaces (after hitting)
 struct Surface {
@@ -382,25 +394,23 @@ vec3 renderStars(vec3 rd) {
     float horizonFade = smoothstep(-0.3, 0.3, rd.y);
 
     // turn ray into random vals
-    vec2 st = rd.xz / (rd.y + 0.3);
-    vec2 starID = floor(st * 150.0); // Star grid resolution
-    float starRand = hash11(dot(starID, vec2(12.9898, 78.233)));
-    float starRand2 = hash11(starID.x * starID.y);
+    vec2 st = rd.xz / rd.y;
+    float starRand = hash11(dot(st, vec2(12.9898, 78.233)));
+    float starRand2 = hash11(st.x * st.y * rd.z);
 
-    if (starRand > 0.9 && starRand2 > 0.9) {  // random points
-        vec2 starCenter = (starID + 0.5) / 150.0;
+    if (starRand > STARTHRESH && starRand2 > STARTHRESH) {  // random points
+        vec2 starCenter = (st + 0.5) / 150.0;
         vec2 delta = st - starCenter;
+        
+        float newRand = hash11(starRand * starRand2); // new random from 0 - 1
 
-        // set start brightness
-        float brightness = (starRand - 0.96) / 0.04;
+        // set star brightness
+        float brightness = newRand;
 
         // colors
-        vec3 color = vec3(1.0);
-        if (starRand > 0.97) {
-            color = mix(vec3(1.0, 0.95, 0.9), vec3(0.9, 0.95, 1.0), hash11(starRand * 1234.5));
-        }
+        vec3 color = mix(vec3(1.0, 0.9, 0.8), vec3(0.8, 0.9, 1.0), hash11(newRand));
 
-        return 1.5 * color * brightness * horizonFade;
+        return color * brightness * horizonFade;
     }
 
     return vec3(0.);
@@ -412,11 +422,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = (fragCoord * 2.0 - iResolution.xy) / iResolution.y;
     
     float camZ = iTime * SPEED;  // Move forward over time
-    vec3 rayOrigin = vec3(0.0, 1.6, camZ);  // Eye height
-    // cam bobbing
-    rayOrigin.x += sin(iTime * 2.) * 0.05;
-    rayOrigin.y += sin(iTime * 3.) * 0.07;
+    vec3 rayOrigin = vec3(0.0, CAMHEIGHT, camZ);  // Eye height
     
+    // cam bobbing
+    rayOrigin += vec3(
+        sin(iTime * BOB_SPEED_X) * BOB_AMOUNT_X,
+        sin(iTime * BOB_SPEED_Y) * BOB_AMOUNT_Y,
+        0.0
+    );
+
     vec3 forward = vec3(0, 0, 1);
     vec3 right = vec3(1, 0, 0);
     vec3 up = vec3(0, 1, 0);
