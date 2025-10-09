@@ -1,4 +1,6 @@
 // Nighttime Alleyway
+// Raymarched in 3d
+// Slow asf
 
 // Rendering constants
 const float FOV = 1.7;              // Field of view
@@ -25,6 +27,7 @@ const float SPEED = 1.8;            // Camera movement speed
 
 const float LIGHTSTRENGTH = 0.4;    // Overall light intensity
 const float LAMPSPACING = 8.5;   // Distance between lamps TODO: make random
+const float LAMPTOWALL = 0.5;  // Distance between lamps and walls (btw has a bit of randomness)
 
 // Properties of surfaces (after hitting)
 struct Surface {
@@ -113,7 +116,7 @@ Surface mapLamps(vec3 p, float time) {
     float lampZ = floor(p.z / LAMPSPACING);
     
     // get close lamps
-    for(int i = -1; i <= 1; i++) {
+    for (int i = -1; i <= 1; i++) {
         float z = (lampZ + float(i)) * LAMPSPACING;
         float seed = z * 13.579;
         
@@ -124,8 +127,8 @@ Surface mapLamps(vec3 p, float time) {
         float side = mod(float(int(z/LAMPSPACING)), 2.0) * 2.0 - 1.0;
         side += (hash11(seed * 1.3) - 0.5) * 0.3;
         
-        float xPos = side * (ALLEY_WIDTH - 1. - hash11(seed));
-        vec3 lampBase = vec3(xPos, 0.0, z);
+        float xPos = side * (ALLEY_WIDTH - LAMPTOWALL - hash11(seed));
+        vec3 lampBase = vec3(xPos, 0.0, z);// xmBg m
         vec3 localP = p - lampBase;
         
         // lamp pole
@@ -139,7 +142,7 @@ Surface mapLamps(vec3 p, float time) {
         float lampDist = min(poleDist, bulbDist);
         
         // if closest lamp, do this - probably can be optimized
-        if(lampDist < s.dist) {
+        if (lampDist < s.dist) {
             s.dist = lampDist;
             
             // calc flicker
@@ -195,12 +198,12 @@ Surface mapTrash(vec3 p) {
     
     float segZ = floor(p.z / SEGMENT_LENGTH);
     
-    for(int i = -1; i <= 1; i++) {
+    for (int i = -1; i <= 1; i++) {
         float z = (segZ + float(i)) * SEGMENT_LENGTH;
         float seed = z * 7.123;  // seed
         
         // skip some segments (no trash cans)
-        if(hash11(seed) > 0.4) continue;
+        if (hash11(seed) > 0.4) continue;
         
         // Random position for trash can - this is bad
         float side = hash11(seed * 1.7) > 0.5 ? 1.0 : -1.0;
@@ -254,9 +257,9 @@ Surface map(vec3 p, float time) {
     return result;
 }
 
-// Calculate surface normal using finite differences
+// Calculate surface normal
 vec3 calcNormal(vec3 p, float time) {
-    vec2 e = vec2(0.001, 0.0);  // Small offset for derivative
+    vec2 e = vec2(0.001, 0.0);  // small offset like elipson
     return normalize(vec3(
         map(p + e.xyy, time).dist - map(p - e.xyy, time).dist,
         map(p + e.yxy, time).dist - map(p - e.yxy, time).dist,
@@ -269,8 +272,8 @@ float softShadow(vec3 ro, vec3 rd, float time, float lightDist) {
     float res = 1.0;  // Start fully lit
     float dist = MINDIST * 2.;  // small start dist
     
-    for(int i = 0; i < SHADOWMAXSTEPS; i++) {
-        if(dist > min(SHADOWMAXDIST, lightDist)) break;
+    for (int i = 0; i < SHADOWMAXSTEPS; i++) {
+        if (dist > min(SHADOWMAXDIST, lightDist)) break;
         
         Surface s = map(ro + rd * dist, time);
         
@@ -283,7 +286,7 @@ float softShadow(vec3 ro, vec3 rd, float time, float lightDist) {
         }
         
         res = min(res, SHADOWSOFTNESS * s.dist / dist);
-        if(res <= 0.001) return 0.0;  // Fully shadowed
+        if (res <= 0.001) return 0.0;  // Fully shadowed
         
         dist += max(s.dist, 0.02);
     }
@@ -297,7 +300,7 @@ void getLampInfo(vec3 p, float time, out vec3 lampPos[7], out float lampIntensit
     
     numLamps = 0;
     
-    // Check wider range of lamps for lighting
+    // Check lamps
     for (int i = -3; i <= 3; i++) {
         if (numLamps >= 7) break;  // 7 lamps
         
@@ -312,7 +315,7 @@ void getLampInfo(vec3 p, float time, out vec3 lampPos[7], out float lampIntensit
         side += (hash11(seed * 1.3) - 0.5) * 0.3;
         
         float lampOffset = hash11(seed);
-        float xPos = side * (ALLEY_WIDTH - 1. - lampOffset);
+        float xPos = side * (ALLEY_WIDTH - LAMPTOWALL - lampOffset);
         
         float poleHeight = 4.5 + hash11(seed * 2.1) * 1.0;
         
@@ -461,15 +464,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             lighting += lampColors[i] * diff * atten * shadow * LIGHTSTRENGTH;
         }
         
-        // Final surface color
+        // surface col
         col = surface.col * (AMBIENT + lighting);
         
-        // now we gotta make them glow
+        // now we gotta make them glow (the lights, i mean)
         if (surface.id == 2) {
             float brightness = dot(surface.col, vec3(0.333));
-            if(brightness > 1.0) {
-                col += surface.col * 0.25;  // Emissive glow
-            }
+            if (brightness > 1.0)  // is on = add glow
+                col += surface.col * 0.3;
         }
         
         // Apply fog
@@ -480,8 +482,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         col = FOGCOLOR * 0.5 + renderStars(rayDir);
     }
     
-    // vignette
-    col *= 1.0 - 0.3 * length(uv * 0.5);
+    // vignette effect
+    col *= 1.0 - 0.4 * length(uv * 0.4);
     
     // change colors
     col = pow(col, vec3(1.05));  // Slight gamma adjustment
