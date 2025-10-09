@@ -1,13 +1,17 @@
 # Nighttime Alleyway
 
-A procedurally generated dark scary alleyway written in GLSL. This project uses procedural scene rendering and lighting effects in ShaderToy.
+A procedurally generated, dark, and atmospheric alleyway written in GLSL. This project showcases procedural scene rendering, dynamic lighting, and shader-based visual effects, designed to run in real-time on ShaderToy.
 
 ## Files
-- baseplate.glsl – The base project has a few basic primitives and is a result of my playing around with lighting after a bunch of youtube tutorials.
-- alley.glsl – The final result after extensive work, featuring a full nighttime alleyway scene with lighting, shadow, and sky effects.
+- `baseplate.glsl` – The starting point of the project, containing basic primitives and simple lighting experiments. This file reflects my early explorations into shader programming and lighting effects. [View on ShaderToy](https://www.shadertoy.com/view/t3lcRf)
+- `alley.glsl` – The final, polished scene featuring a complete nighttime alleyway with walls, ground, dynamic lighting, shadows, and sky effects. [View on ShaderToy](https://www.shadertoy.com/view/wfSBD3)
 
-## Usage
-1. Open ShaderToy (https://www.shadertoy.com/).
-2. Create a new shader.
-3. Copy the code from alley.glsl or baseplate.glsl into the editor.
-4. Run to see the scene rendered in real time.
+## Features
+- Procedural generation of textures, lamps, ground, and other elements.
+- Realistic lighting and soft shadows.
+- Nighttime atmosphere with starfield.
+- Adjustable parameters.
+
+## Notes
+- The scene is performance-intensive due to ray marching; reducing `STEPS` and `SHADOWMAXSTEPS` in the shader can improve performance. <sub>but mostly bc i suck at coding</sub>
+- Experiment with constants like alley width, wall height, and lighting parameters at the top of the shader for custom visuals.
