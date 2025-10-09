@@ -26,7 +26,7 @@ const vec3 AMBIENT = vec3(0.06, 0.07, 0.09);      // Ambient light color
 const float SPEED = 1.8;            // Camera movement speed
 
 // Lamppost settings
-const float LIGHTSTRENGTH = 0.4;    // Overall light intensity
+const float LIGHTSTRENGTH = 0.4;    // Overall light intensity for lamps
 const float LAMPSPACING = 8.5;   // Distance between lamps TODO: make random
 const float LAMPTOWALL = 0.7;  // Distance between lamps and walls (btw has a bit of randomness)
 
@@ -406,7 +406,7 @@ vec3 renderStars(vec3 rd) {
         float newRand = hash11(starRand * starRand2); // new random from 0 - 1
 
         // set star brightness
-        float brightness = newRand;
+        float brightness = newRand * STARBRIGHTNESS;
 
         // colors
         vec3 color = mix(vec3(1.0, 0.9, 0.8), vec3(0.8, 0.9, 1.0), hash11(newRand));
